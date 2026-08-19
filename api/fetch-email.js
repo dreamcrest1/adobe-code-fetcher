@@ -1,26 +1,11 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
-// Map the frontend Outlook request to the backend Dreamcrest inbox
+// Direct accounts database
 const ACCOUNTS_DB = {
-  "as2006dream@outlook.com": { 
-    backendEmail: "as2006dream@dreamcrest.net", 
-    pass: "XGas1212$$@@", 
-    host: "mail.dreamcrest.net", 
-    type: "dreamcrest" 
-  },
-  "ad2006adb@outlook.com": { 
-    backendEmail: "ad2006adb@dreamcrest.net", 
-    pass: "XGas1212$$@@", 
-    host: "mail.dreamcrest.net", 
-    type: "dreamcrest" 
-  },
-  "azadhindorg@gmail.com": { 
-    backendEmail: "azadhindorg@gmail.com", 
-    pass: "bxaa dvsi gluq owgz", 
-    host: "imap.gmail.com", 
-    type: "gmail" 
-  }
+  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
+  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
+  "azadhindorg@gmail.com": { pass: "bxaa dvsi gluq owgz", host: "imap.gmail.com" }
 };
 
 module.exports = async (req, res) => {
@@ -44,7 +29,7 @@ module.exports = async (req, res) => {
     host: accountData.host,
     port: 993,
     secure: true,
-    auth: { user: accountData.backendEmail, pass: accountData.pass },
+    auth: { user: requestedEmail, pass: accountData.pass },
     logger: false,
     connectionTimeout: 15000,
     socketTimeout: 20000
@@ -114,13 +99,6 @@ module.exports = async (req, res) => {
       return res.status(404).json({ success: false, message: "Both Inbox and Spam are completely empty." });
     }
 
-    // 5. Mask the backend email so the user only sees the Outlook email
-    let toText = parsed.to?.text || requestedEmail;
-    if (accountData.type === 'dreamcrest') {
-      const regex = new RegExp(accountData.backendEmail, 'gi');
-      toText = toText.replace(regex, requestedEmail);
-    }
-
     const payload = {
       success: true,
       data: {
@@ -128,7 +106,7 @@ module.exports = async (req, res) => {
         folder: location,
         subject: parsed.subject || "No Subject",
         from: parsed.from?.text || "Unknown Sender",
-        to: toText,
+        to: parsed.to?.text || requestedEmail,
         date: parsed.date || new Date(),
         html: parsed.html || null,
         text: parsed.text || ""
@@ -142,7 +120,7 @@ module.exports = async (req, res) => {
     try { await client.logout(); } catch (_) {}
 
     if (error.authenticationFailed) {
-      return res.status(401).json({ success: false, message: `Login failed for backend account. Check passwords.` });
+      return res.status(401).json({ success: false, message: `Login failed. Check your password.` });
     }
     return res.status(502).json({ success: false, message: "Could not connect to the mail server.", error: error.message });
   }
