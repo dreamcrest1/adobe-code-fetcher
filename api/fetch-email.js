@@ -1,10 +1,11 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
-// Direct accounts database
+// Direct accounts database updated with ax22@dreamcrest.net
 const ACCOUNTS_DB = {
   "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
   "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
+  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
   "azadhindorg@gmail.com": { pass: "bxaa dvsi gluq owgz", host: "imap.gmail.com" }
 };
 
