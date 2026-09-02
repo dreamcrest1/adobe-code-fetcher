@@ -31,10 +31,12 @@ module.exports = async (req, res) => {
     secure: true,
     auth: { user: requestedEmail, pass: accountData.pass },
     logger: false,
-    connectionTimeout: 15000,
-    socketTimeout: 20000,
+    // INCREASED TIMEOUTS FOR CLOUD HOSTING
+    connectionTimeout: 30000, 
+    socketTimeout: 40000,
     tls: {
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1' // Forces compatibility with older mail servers
     }
   });
 
@@ -119,10 +121,14 @@ module.exports = async (req, res) => {
     if (error.authenticationFailed) {
       return res.status(401).json({ success: false, message: `Login failed. Check your password.` });
     }
+    
+    // THIS WILL CAPTURE THE EXACT SYSTEM ERROR
+    const exactError = error.code || error.message || "Unknown Network Error";
+    
     return res.status(502).json({ 
       success: false, 
-      message: "Could not connect to the mail server.", 
-      error: error.message || error.code
+      message: `Connection Blocked by Server: ${exactError}`, 
+      error: exactError
     });
   }
 };
