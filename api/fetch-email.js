@@ -1,11 +1,11 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
-// Using the Direct IP + Port 143 Bypass
+// All Dreamcrest domains now securely route through the Gmail bridge account
 const ACCOUNTS_DB = {
-  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249", port: 143, secure: false },
-  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249", port: 143, secure: false },
-  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249", port: 143, secure: false }
+  "as2006dream@dreamcrest.net": { bridgeUser: "azadhindorg@gmail.com", pass: "bxaa dvsi gluq owgz", host: "imap.gmail.com" },
+  "ad2006adb@dreamcrest.net": { bridgeUser: "azadhindorg@gmail.com", pass: "bxaa dvsi gluq owgz", host: "imap.gmail.com" },
+  "ax22@dreamcrest.net": { bridgeUser: "azadhindorg@gmail.com", pass: "bxaa dvsi gluq owgz", host: "imap.gmail.com" }
 };
 
 module.exports = async (req, res) => {
@@ -25,18 +25,15 @@ module.exports = async (req, res) => {
 
   const accountData = ACCOUNTS_DB[requestedEmail];
 
+  // Connect to GMAIL using the bridge credentials
   const client = new ImapFlow({
-    host: accountData.host, 
-    port: accountData.port,
-    secure: accountData.secure,
-    auth: { user: requestedEmail, pass: accountData.pass },
+    host: accountData.host,
+    port: 993,
+    secure: true,
+    auth: { user: accountData.bridgeUser, pass: accountData.pass },
     logger: false,
-    connectionTimeout: 30000, 
-    socketTimeout: 40000,
-    tls: {
-      rejectUnauthorized: false,
-      minVersion: 'TLSv1'
-    }
+    connectionTimeout: 15000,
+    socketTimeout: 20000
   });
 
   client.on('error', () => {});
@@ -48,9 +45,14 @@ module.exports = async (req, res) => {
       try {
         const lock = await client.getMailboxLock(folderPath);
         try {
-          const status = await client.status(folderPath, { messages: true });
-          if (status.messages > 0) {
-            const message = await client.fetchOne(`${status.messages}`, { source: true, envelope: true });
+          // Because all 3 emails forward to the same Gmail, we search the folder 
+          // specifically for emails containing the requested Dreamcrest address.
+          const seqs = await client.search({ text: requestedEmail });
+          
+          if (seqs && seqs.length > 0) {
+            // Get the maximum sequence number (the absolute most recent email)
+            const latestSeq = Math.max(...seqs);
+            const message = await client.fetchOne(`${latestSeq}`, { source: true });
             return await simpleParser(message.source);
           }
         } finally {
@@ -62,19 +64,23 @@ module.exports = async (req, res) => {
       return null;
     }
 
+    // 1. Fetch matching email from INBOX
     let latestInbox = await fetchLatestFromFolder('INBOX');
 
+    // 2. Identify Spam folder (Gmail usually uses '[Gmail]/Spam')
     let spamFolderPath = null;
     const mailboxes = await client.list();
     for (let box of mailboxes) {
-      if (box.flags.has('\\Junk') || box.name.toLowerCase() === 'spam' || box.name.toLowerCase() === 'junk') {
+      if (box.flags.has('\\Junk') || box.name.toLowerCase().includes('spam')) {
         spamFolderPath = box.path;
         break;
       }
     }
     
+    // 3. Fetch matching email from Spam
     let latestSpam = spamFolderPath ? await fetchLatestFromFolder(spamFolderPath) : null;
 
+    // 4. Compare dates to find the absolute latest email received
     let parsed = null;
     let location = 'INBOX';
 
@@ -94,7 +100,10 @@ module.exports = async (req, res) => {
 
     if (!parsed) {
       await client.logout();
-      return res.status(404).json({ success: false, message: "Both Inbox and Spam are completely empty." });
+      return res.status(404).json({ 
+        success: false, 
+        message: `No emails found for ${requestedEmail} in the bridge Inbox or Spam.` 
+      });
     }
 
     const payload = {
@@ -118,15 +127,13 @@ module.exports = async (req, res) => {
     try { await client.logout(); } catch (_) {}
 
     if (error.authenticationFailed) {
-      return res.status(401).json({ success: false, message: `Login failed. Check your password.` });
+      return res.status(401).json({ success: false, message: `Gmail Bridge login failed. Check the App Password.` });
     }
-    
-    const exactError = error.code || error.message || "Unknown Network Error";
     
     return res.status(502).json({ 
       success: false, 
-      message: `Connection Blocked by Server: ${exactError}`, 
-      error: exactError
+      message: "Could not connect to Gmail.", 
+      error: error.message || error.code
     });
   }
 };
