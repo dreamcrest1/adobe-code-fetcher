@@ -1,10 +1,11 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
+// Direct accounts database using the RAW IP ADDRESS to bypass Cloudflare/DNS blocks
 const ACCOUNTS_DB = {
-  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net", port: 143, secure: false },
-  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net", port: 143, secure: false },
-  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net", port: 143, secure: false }
+  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249" },
+  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249" },
+  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249" }
 };
 
 module.exports = async (req, res) => {
@@ -25,15 +26,15 @@ module.exports = async (req, res) => {
   const accountData = ACCOUNTS_DB[requestedEmail];
 
   const client = new ImapFlow({
-    host: accountData.host,
-    port: accountData.port,     // Now dynamically uses 143
-    secure: accountData.secure, // Starts unencrypted, upgrades to TLS automatically
+    host: accountData.host, // Now using 103.191.209.249
+    port: 993,
+    secure: true,
     auth: { user: requestedEmail, pass: accountData.pass },
     logger: false,
     connectionTimeout: 30000, 
     socketTimeout: 40000,
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, // Prevents SSL mismatch errors when using an IP
       minVersion: 'TLSv1'
     }
   });
@@ -115,10 +116,13 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     try { await client.logout(); } catch (_) {}
+
     if (error.authenticationFailed) {
       return res.status(401).json({ success: false, message: `Login failed. Check your password.` });
     }
+    
     const exactError = error.code || error.message || "Unknown Network Error";
+    
     return res.status(502).json({ 
       success: false, 
       message: `Connection Blocked by Server: ${exactError}`, 
