@@ -1,11 +1,10 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
-// Direct accounts database
 const ACCOUNTS_DB = {
-  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
-  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
-  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" }
+  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net", port: 143, secure: false },
+  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net", port: 143, secure: false },
+  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net", port: 143, secure: false }
 };
 
 module.exports = async (req, res) => {
@@ -27,16 +26,15 @@ module.exports = async (req, res) => {
 
   const client = new ImapFlow({
     host: accountData.host,
-    port: 993,
-    secure: true,
+    port: accountData.port,     // Now dynamically uses 143
+    secure: accountData.secure, // Starts unencrypted, upgrades to TLS automatically
     auth: { user: requestedEmail, pass: accountData.pass },
     logger: false,
-    // INCREASED TIMEOUTS FOR CLOUD HOSTING
     connectionTimeout: 30000, 
     socketTimeout: 40000,
     tls: {
       rejectUnauthorized: false,
-      minVersion: 'TLSv1' // Forces compatibility with older mail servers
+      minVersion: 'TLSv1'
     }
   });
 
@@ -117,14 +115,10 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     try { await client.logout(); } catch (_) {}
-
     if (error.authenticationFailed) {
       return res.status(401).json({ success: false, message: `Login failed. Check your password.` });
     }
-    
-    // THIS WILL CAPTURE THE EXACT SYSTEM ERROR
     const exactError = error.code || error.message || "Unknown Network Error";
-    
     return res.status(502).json({ 
       success: false, 
       message: `Connection Blocked by Server: ${exactError}`, 
