@@ -1,12 +1,11 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
-// Direct accounts database updated with ax22@dreamcrest.net
+// Direct accounts database
 const ACCOUNTS_DB = {
   "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
   "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
-  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" },
-  "azadhindorg@gmail.com": { pass: "bxaa dvsi gluq owgz", host: "imap.gmail.com" }
+  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "mail.dreamcrest.net" }
 };
 
 module.exports = async (req, res) => {
@@ -33,7 +32,10 @@ module.exports = async (req, res) => {
     auth: { user: requestedEmail, pass: accountData.pass },
     logger: false,
     connectionTimeout: 15000,
-    socketTimeout: 20000
+    socketTimeout: 20000,
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 
   client.on('error', () => {});
@@ -41,7 +43,6 @@ module.exports = async (req, res) => {
   try {
     await client.connect();
 
-    // Helper function to safely fetch the newest email from a specific folder
     async function fetchLatestFromFolder(folderPath) {
       try {
         const lock = await client.getMailboxLock(folderPath);
@@ -55,29 +56,24 @@ module.exports = async (req, res) => {
           lock.release();
         }
       } catch (err) {
-        return null; // Folder doesn't exist or is inaccessible
+        return null; 
       }
       return null;
     }
 
-    // 1. Fetch from INBOX
     let latestInbox = await fetchLatestFromFolder('INBOX');
 
-    // 2. Identify Spam/Junk folder dynamically
     let spamFolderPath = null;
     const mailboxes = await client.list();
     for (let box of mailboxes) {
-      // Look for standard IMAP Junk flags or common names
       if (box.flags.has('\\Junk') || box.name.toLowerCase() === 'spam' || box.name.toLowerCase() === 'junk') {
         spamFolderPath = box.path;
         break;
       }
     }
     
-    // 3. Fetch from Spam (if it exists)
     let latestSpam = spamFolderPath ? await fetchLatestFromFolder(spamFolderPath) : null;
 
-    // 4. Compare dates to find the absolute latest email received
     let parsed = null;
     let location = 'INBOX';
 
@@ -123,6 +119,10 @@ module.exports = async (req, res) => {
     if (error.authenticationFailed) {
       return res.status(401).json({ success: false, message: `Login failed. Check your password.` });
     }
-    return res.status(502).json({ success: false, message: "Could not connect to the mail server.", error: error.message });
+    return res.status(502).json({ 
+      success: false, 
+      message: "Could not connect to the mail server.", 
+      error: error.message || error.code
+    });
   }
 };
