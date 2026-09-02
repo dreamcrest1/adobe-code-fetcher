@@ -1,11 +1,11 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 
-// Direct accounts database using the RAW IP ADDRESS to bypass Cloudflare/DNS blocks
+// Using the Direct IP + Port 143 Bypass
 const ACCOUNTS_DB = {
-  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249" },
-  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249" },
-  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249" }
+  "as2006dream@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249", port: 143, secure: false },
+  "ad2006adb@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249", port: 143, secure: false },
+  "ax22@dreamcrest.net": { pass: "XGas1212$$@@", host: "103.191.209.249", port: 143, secure: false }
 };
 
 module.exports = async (req, res) => {
@@ -26,15 +26,15 @@ module.exports = async (req, res) => {
   const accountData = ACCOUNTS_DB[requestedEmail];
 
   const client = new ImapFlow({
-    host: accountData.host, // Now using 103.191.209.249
-    port: 993,
-    secure: true,
+    host: accountData.host, 
+    port: accountData.port,
+    secure: accountData.secure,
     auth: { user: requestedEmail, pass: accountData.pass },
     logger: false,
     connectionTimeout: 30000, 
     socketTimeout: 40000,
     tls: {
-      rejectUnauthorized: false, // Prevents SSL mismatch errors when using an IP
+      rejectUnauthorized: false,
       minVersion: 'TLSv1'
     }
   });
